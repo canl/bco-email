@@ -55,7 +55,7 @@ http://localhost:5000
 1. Enter the required trade information:
    - Trade ID
    - Clearing House LEI (defaults to 123456)
-   - Clearing House Trader ID (must be at least 10 alphanumeric characters)
+   - Clearing House Trade ID (must be at least 10 alphanumeric characters)
 
 2. Click the "Add Entry" button to add more trade entries if needed
 

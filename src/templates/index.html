@@ -6,6 +6,7 @@
     <title>Trade Novation Tool</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
     <style>
         :root {
             --bloomberg-dark: #000000;
@@ -21,6 +22,7 @@
             --bloomberg-input-bg: #1a1a1a;
             --bloomberg-header-bg: #000000;
             --bloomberg-highlight: #ff8c00;
+            --favicon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="%23ff8c00"/></svg>');
         }
 
         body {
@@ -354,6 +356,64 @@
             background-color: var(--bloomberg-light-gray);
             border-color: var(--bloomberg-border);
         }
+
+        /* Autofill override for Bloomberg theme */
+        input.form-control:-webkit-autofill,
+        input.form-control:-webkit-autofill:focus,
+        input.form-control:-webkit-autofill:hover,
+        input.form-control:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 1000px var(--bloomberg-input-bg) inset !important;
+            box-shadow: 0 0 0 1000px var(--bloomberg-input-bg) inset !important;
+            -webkit-text-fill-color: var(--bloomberg-text) !important;
+            color: var(--bloomberg-text) !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+        input.form-control:-internal-autofill-selected {
+            background-color: var(--bloomberg-input-bg) !important;
+            color: var(--bloomberg-text) !important;
+        }
+
+        /* Loader spinner styles */
+        .loader-spinner {
+            display: inline-block;
+            width: 1.5rem;
+            height: 1.5rem;
+            border: 3px solid var(--bloomberg-light-gray);
+            border-top: 3px solid var(--bloomberg-orange);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-right: 0.5rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* CSS Favicon (Bloomberg-style orange circle) */
+        @media all {
+            /* Set favicon using CSS for most browsers */
+            [rel~="icon"] {
+                display: none;
+            }
+            
+            /* Chrome/Edge/Safari */
+            @supports (-webkit-mask-image: var(--favicon)) or (mask-image: var(--favicon)) {
+                :root::before {
+                    content: '';
+                    position: fixed;
+                    top: -100px;
+                    left: -100px;
+                    width: 32px;
+                    height: 32px;
+                    pointer-events: none;
+                    z-index: -1;
+                    background: var(--favicon) no-repeat center/contain;
+                    -webkit-mask-image: var(--favicon);
+                    mask-image: var(--favicon);
+                }
+            }
+        }
     </style>
 </head>
 <body>
@@ -379,22 +439,28 @@
                         <i class="fas fa-trash-alt"></i>
                     </button>
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="trade_id">Trade ID</label>
                                 <input type="text" class="form-control" name="trade_id" required>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="lei">Clearing House LEI</label>
                                 <input type="text" class="form-control" name="lei" value="123456" required>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
-                                <label for="trader_id">Clearing House Trader ID</label>
-                                <input type="text" class="form-control" name="trader_id" required>
+                                <label for="clearing_house_trade_id">Clearing House Trade ID</label>
+                                <input type="text" class="form-control" name="clearing_house_trade_id" required>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="trader_id">Trader ID</label>
+                                <input type="text" class="form-control" name="trader_id" value="zkqw1r7" required>
                             </div>
                         </div>
                     </div>
@@ -430,11 +496,12 @@
                     <div class="modal-body">
                         <p>Please review the data before submission:</p>
                         <div class="data-preview">
-                            <pre id="confirmationData"></pre>
+                            <pre id="confirmationData"><code class="language-json"></code></pre>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <span id="loaderSpinner" class="loader-spinner" style="display:none;"></span>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal" id="cancelSubmitBtn">Cancel</button>
                         <button type="button" class="btn btn-primary" id="confirmSubmit">Confirm & Submit</button>
                     </div>
                 </div>
@@ -467,6 +534,8 @@
     <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
     <script>
         $(document).ready(function() {
             // Theme toggle functionality
@@ -496,6 +565,7 @@
                 const newEntry = $('.entry-container:first').clone();
                 newEntry.find('input').val('');
                 newEntry.find('[name="lei"]').val('123456'); // Set default LEI value
+                newEntry.find('[name="trader_id_display"]').val('zkqw1r7'); // Set default Trader ID value
                 newEntry.find('.remove-entry').show(); // Show remove button for new entries
                 $('#entries-container').append(newEntry);
             });
@@ -520,6 +590,7 @@
                     entries.push({
                         trade_id: $(this).find('[name="trade_id"]').val(),
                         lei: $(this).find('[name="lei"]').val(),
+                        clearing_house_trade_id: $(this).find('[name="clearing_house_trade_id"]').val(),
                         trader_id: $(this).find('[name="trader_id"]').val()
                     });
                 });
@@ -530,25 +601,37 @@
                 };
 
                 // Show confirmation modal with formatted data
-                $('#confirmationData').text(JSON.stringify(pendingPayload, null, 2));
+                var jsonStr = JSON.stringify(pendingPayload, null, 2);
+                var highlighted = Prism.highlight(jsonStr, Prism.languages.json, 'json');
+                $('#confirmationData code').html(highlighted);
                 $('#confirmationModal').modal('show');
             });
 
             // Handle confirmation
             $('#confirmSubmit').click(function() {
                 if (pendingPayload) {
+                    // Show loader and disable buttons
+                    $('#loaderSpinner').show();
+                    $('#confirmSubmit').prop('disabled', true);
+                    $('#cancelSubmitBtn').prop('disabled', true);
                     $.ajax({
                         url: '/novation-service',
                         method: 'POST',
                         contentType: 'application/json',
                         data: JSON.stringify(pendingPayload),
                         success: function(response) {
+                            $('#loaderSpinner').hide();
+                            $('#confirmSubmit').prop('disabled', false);
+                            $('#cancelSubmitBtn').prop('disabled', false);
                             if (response.success) {
                                 $('#confirmationModal').modal('hide');
                                 $('#successModal').modal('show');
                             }
                         },
                         error: function(xhr) {
+                            $('#loaderSpinner').hide();
+                            $('#confirmSubmit').prop('disabled', false);
+                            $('#cancelSubmitBtn').prop('disabled', false);
                             alert(xhr.responseJSON.message || 'An error occurred');
                         }
                     });
