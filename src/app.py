@@ -17,10 +17,10 @@ def novation_service():
     
     # Validate trader IDs
     for entry in data['entries']:
-        if not validate_trader_id(entry['trader_id']):
+        if not validate_trader_id(entry['trade_id']):
             return jsonify({
                 'success': False,
-                'message': f'Invalid trader ID: {entry["trader_id"]}. Must be at least 10 alphanumeric characters.'
+                'message': f'Invalid trade ID: {entry["trade_id"]}. Must be at least 10 alphanumeric characters.'
             }), 400
     
     # Here you would typically make the actual novation service call
